@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  
+@layer components {
+    .container {
+        @apply max-w-full w-[1440px] px-5 mx-auto;
+    }
+}
+
+@media only screen and (max-width: 1024px) {
+    .container {
+        @apply w-full;
+    }
+}
+
+@layer utilities {
+    .bg-dotted-pattern {
+      background-image: radial-gradient(circle, #000 1px, transparent 1px);
+      background-size: 4px 4px;
+    }
+  }
+
+  @layer utilities {
+    .glitch {
+      position: relative;
+      display: inline-block;
+      text-transform: uppercase;
+      animation: glitch-animation 1s infinite;
+    }
+  
+    .glitch::before,
+    .glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0;
+      left: 0;
+      opacity: 0.8;
+    }
+  
+    .glitch::before {
+      color: #f00;
+      transform: translate(-2px, -2px);
+    }
+  
+    .glitch::after {
+      color: #0ff;
+      transform: translate(2px, 2px);
+    }
+  
+    @keyframes glitch-animation {
+      0% { transform: translate(0); }
+      20% { transform: translate(-2px, 2px); }
+      40% { transform: translate(2px, -2px); }
+      60% { transform: translate(-2px, -2px); }
+      80% { transform: translate(2px, 2px); }
+      100% { transform: translate(0); }
+    }
+  }
+  

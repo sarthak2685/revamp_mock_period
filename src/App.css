@@ -1,0 +1,13 @@
+.illustration-container {
+  perspective: 1000px; /* 3D depth */
+}
+
+.illustration {
+  transition: transform 0.6s ease;
+  transform-style: preserve-3d; /* Required for 3D transforms */
+}
+
+.illustration-container:hover .illustration {
+  transform: rotateX(15deg) rotateY(-15deg); /* Apply 3D rotation */
+}
+
