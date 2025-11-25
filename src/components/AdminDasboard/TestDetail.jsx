@@ -29,17 +29,13 @@ function TestDetail() {
   // Fetch Exam Tests
   const fetchTests = async () => {
     try {
-      const selectedInstituteNames = S?.institute_name;
-      const queryParams = new URLSearchParams({
-        student_id: "3738837e-c8bd-458d-9152-634378b01060",
-        institute_name: selectedInstituteNames,
-      });
+      const selectedInstituteNames = S?.id;
 
       const response = await fetch(
-        `${config.apiUrl}/tests_point/?${queryParams.toString()}`,
+        `${config.apiUrl}/tests/institute/${selectedInstituteNames}`,
         {
           headers: {
-            Authorization: `Token ${token}`,
+            Authorization: `${token}`,
             "Content-Type": "application/json",
           },
         }
@@ -50,6 +46,7 @@ function TestDetail() {
       }
 
       const data = await response.json();
+      console.log("Fetched test data:", data);
 
       // Group tests by `for_exam__name`
       const groupedTests = data.test_names

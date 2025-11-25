@@ -25,7 +25,7 @@ const TestList = () => {
   const [selectedTestId, setSelectedTestId] = useState(null);
   const S = JSON.parse(localStorage.getItem("user"));
   const token = S?.token;
-  const API_URL = `${config.apiUrl}/delete_test_names/`;
+  const API_URL = `${config.apiUrl}/tests/`;
 
   const toggleSidebar = () => setIsCollapsed((prev) => !prev);
 
@@ -123,8 +123,8 @@ const fetchSubjectTests = useCallback(async () => {
     if (!deleteTestName) return;
 
     try {
-      await axios.delete(`${API_URL}?test_name=${deleteTestName}`, {
-        headers: { Authorization: `Token ${token}` },
+      await axios.delete(`${API_URL}${deleteTestName}`, {
+        headers: { Authorization: `${token}` },
       });
       toast.success("Test deleted successfully");
       fetchTests();
@@ -316,7 +316,7 @@ const handleEdit = (test) => {
                 // Links for exam tests
                 <>
                   <Link
-  to={`/view?test=${selectedTestName}&exam_id=${selectedExamId}&test_id=${selectedTestId}&language=en`}
+  to={`/view?test=${selectedTestName}&exam_id=${selectedExamId}&test_id=${selectedTestId}&language=ENGLISH`}
   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-center"
   onClick={() => setIsLangModalOpen(false)}
 >
@@ -324,7 +324,7 @@ const handleEdit = (test) => {
 </Link>
 
 <Link
-  to={`/view?test=${selectedTestName}&exam_id=${selectedExamId}&test_id=${selectedTestId}&language=hi`}
+  to={`/view?test=${selectedTestName}&exam_id=${selectedExamId}&test_id=${selectedTestId}&language=HINDI`}
   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-center"
   onClick={() => setIsLangModalOpen(false)}
 >

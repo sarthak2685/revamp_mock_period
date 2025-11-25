@@ -42,64 +42,27 @@ const Login = () => {
 console.log("response",response)
       if (response.data && response.data.role) {
         // Extract fields from the response
-        const {
-          type,
-          user,
-          token,
-          id,
-          pic,
-          gender,
-          name,
-          institute_name,
-          expiry, // Added expiry
-          plan_taken, // Added plan_taken
-          id_auth, // Added id_auth
-          email_id,
-          password_encoded,
-          mobile_no,
-          student_limit,
-          role
-        } = response.data;
+      const userData = {
+    token: response.data.token,
+    email: response.data.email,
+    name: response.data.name,
+    role: response.data.role,
+    type: response.data.type,
+    id: response.data.id,
+  };
 
-        // Consolidate into a single object
-        const userData = {
-          type,
-          user,
-          token,
-          id,
-          name,
-          pic,
-          gender,
-          institute_name,
-          id_auth, 
-          email_id,
-          password_encoded,
-          mobile_no,
-          expiry,
-          student_limit,
-          role
-        };
+  localStorage.setItem("user", JSON.stringify(userData));
 
-        // Save the object in localStorage
-        localStorage.setItem("user", JSON.stringify(userData));
-
-        // Save expiry and plan_taken in localStorage
-        localStorage.setItem("expiry", expiry);
-        localStorage.setItem("plan_taken", plan_taken);
-        // console.log("role", role);
-
-        if (role === "SUPERADMIN") {
-          navigate("/super-admin");
-          // setTimeout(() => window.location.reload(), 0);
-        } else if (role === "ADMIN") {
-          navigate("/admin");
-          setTimeout(() => window.location.reload(), 0);
-        } else if (role === "STUDENT") {
-          navigate("/");
-          setTimeout(() => window.location.reload(), 0);
-        } else {
-          setError("Unknown role. Please contact support.");
-        }
+  // Redirect based on role
+  if (response.data.role === "SUPERADMIN") {
+    navigate("/super-admin");
+  } else if (response.data.role === "ADMIN") {
+    navigate("/admin");
+    setTimeout(() => window.location.reload(), 0);
+  } else if (response.data.role === "STUDENT") {
+    navigate("/");
+    setTimeout(() => window.location.reload(), 0);
+  } 
       } else {
         setError("Account Expired. Please Renew");
       }

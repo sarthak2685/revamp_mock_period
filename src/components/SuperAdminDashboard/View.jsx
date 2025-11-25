@@ -18,6 +18,7 @@ const View = () => {
   const [selectedInstitutes, setSelectedInstitutes] = useState([]);
   const [institutes, setInstitutes] = useState([]);
   const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [isEditingBasicDetails, setIsEditingBasicDetails] = useState(false);
   const [editedDetails, setEditedDetails] = useState({
     testName: "",
     positiveMarks: "",
@@ -39,7 +40,7 @@ const View = () => {
   const queryParams = new URLSearchParams(location.search);
   const testName = queryParams.get("test");
   const test_id = queryParams.get("test_id");
-  const language = queryParams.get("lang") || queryParams.get("language") || "en";
+  const language = queryParams.get("lang") || queryParams.get("language") || "ENGLISH";
   const examId = queryParams.get("exam_id");
   const subjectId = queryParams.get("subject_id");
 
@@ -126,12 +127,13 @@ const View = () => {
         return;
       }
 
-      const apiUrl = `${config.apiUrl}/tests/${test_id}/with-questions`;
+      const apiUrl = `${config.apiUrl}/tests/${test_id}/with-questions/${language}`;
 
       const { data } = await axios.get(apiUrl, {
         headers: { Authorization: `${token}` },
       });
 
+      console.log("Fetched exam details:", data); // Debug log
       setExamDetails(data);
       
       // Set basic exam details
@@ -140,6 +142,16 @@ const View = () => {
         positiveMarks: data.correctMark || "",
         negativeMarks: data.negativeMark || "",
       });
+
+      // Handle institute data - FIXED
+      if (data.instituteNames && data.instituteNames.length > 0) {
+        const instituteOptions = data.instituteNames.map((name, index) => ({
+          value: data.instituteIds?.[index] || `inst-${index}`,
+          label: name
+        }));
+        console.log("Setting institutes:", instituteOptions); // Debug log
+        setSelectedInstitutes(instituteOptions);
+      }
 
       // Handle different exam types
       if (data.examType === "SUBJECT_WISE") {
@@ -151,25 +163,33 @@ const View = () => {
         setSelectedSubject(subjectData);
         setSubjects([subjectData]);
         
-        // Process questions for subject-wise exam
+        // Process questions for subject-wise exam - FIXED OPTIONS HANDLING
         if (data.questions && data.questions.length > 0) {
-          const formattedQuestions = data.questions.map((q) => ({
-            id: q.id,
-            questionText: q.questionText || q.question,
-            questionText2: q.questionImageUrl,
-            options: q.options || [q.option1, q.option2, q.option3, q.option4].filter(Boolean),
-            correctAnswer: q.correctAnswer || q.correctOption,
-            correctAnswerImage: q.correctAnswerImage,
-            positiveMarks: data.correctMark,
-            negativeMarks: data.negativeMark,
-            optionFiles: [
-              { text: q.option1, image: q.optionImage1 },
-              { text: q.option2, image: q.optionImage2 },
-              { text: q.option3, image: q.optionImage3 },
-              { text: q.option4, image: q.optionImage4 },
-            ].filter((opt) => opt.text),
-            instituteIds: data.instituteIds || [],
-          }));
+          const formattedQuestions = data.questions.map((q) => {
+            // Use the options array directly from the response
+            const optionFiles = q.options ? q.options.map(opt => ({
+              text: opt.optionText,
+              image: opt.optionImageUrl,
+              isCorrect: opt.isCorrect
+            })) : [];
+            // console.log("Question options:", q.options);
+            // Find correct answer
+            const correctOption = q.options?.find(opt => opt.isCorrect);
+            
+            return {
+              id: q.id,
+              questionText: q.questionText || q.question,
+              questionText2: q.questionImageUrl,
+              options: q.options || [],
+              correctAnswer: correctOption?.optionText || "",
+              correctAnswerImage: null,
+              positiveMarks: data.correctMark,
+              negativeMarks: data.negativeMark,
+              optionFiles: optionFiles,
+              instituteIds: data.instituteIds || [],
+            };
+          });
+          console.log("Formatted questions:", formattedQuestions); // Debug log
           setQuestions(formattedQuestions);
         }
       } else {
@@ -185,44 +205,41 @@ const View = () => {
             const firstSubject = subjectsList[0];
             setSelectedSubject(firstSubject);
             
-            // Process questions for the first subject
+            // Process questions for the first subject - FIXED OPTIONS HANDLING
             if (data.questions && data.questions.length > 0) {
               const subjectQuestions = data.questions.filter(q => 
                 q.subjectName === firstSubject.name || !q.subjectName
               );
               
-              const formattedQuestions = subjectQuestions.map((q) => ({
-                id: q.id,
-                questionText: q.questionText || q.question,
-                questionText2: q.questionImageUrl,
-                options: q.options || [q.option1, q.option2, q.option3, q.option4].filter(Boolean),
-                correctAnswer: q.correctAnswer || q.correctOption,
-                correctAnswerImage: q.correctAnswerImage,
-                positiveMarks: data.correctMark,
-                negativeMarks: data.negativeMark,
-                optionFiles: [
-                  { text: q.option1, image: q.optionImage1 },
-                  { text: q.option2, image: q.optionImage2 },
-                  { text: q.option3, image: q.optionImage3 },
-                  { text: q.option4, image: q.optionImage4 },
-                ].filter((opt) => opt.text),
-                instituteIds: data.instituteIds || [],
-              }));
+              const formattedQuestions = subjectQuestions.map((q) => {
+                // Use the options array directly from the response
+                const optionFiles = q.options ? q.options.map(opt => ({
+                  text: opt.optionText,
+                  image: opt.optionImageUrl,
+                  isCorrect: opt.isCorrect
+                })) : [];
+                
+                // Find correct answer
+                const correctOption = q.options?.find(opt => opt.isCorrect);
+                
+                return {
+                  id: q.id,
+                  questionText: q.questionText || q.question,
+                  questionText2: q.questionImageUrl,
+                  options: q.options || [],
+                  correctAnswer: correctOption?.optionText || "",
+                  correctAnswerImage: null,
+                  positiveMarks: data.correctMark,
+                  negativeMarks: data.negativeMark,
+                  optionFiles: optionFiles,
+                  instituteIds: data.instituteIds || [],
+                };
+              });
+              console.log("Formatted exam-wise questions:", formattedQuestions); // Debug log
               setQuestions(formattedQuestions);
             }
           }
         }
-      }
-
-      // Set institute data if available
-      if (data.instituteIds) {
-        // You might need to fetch institute details based on IDs
-        // For now, we'll set the selected institutes
-        const instituteOptions = data.instituteIds.map(id => ({
-          value: id,
-          label: `Institute ${id}`
-        }));
-        setSelectedInstitutes(instituteOptions);
       }
 
     } catch (error) {
@@ -282,23 +299,30 @@ const View = () => {
         q.subjectName === subject.name || !q.subjectName
       );
       
-      const formattedQuestions = subjectQuestions.map((q) => ({
-        id: q.id,
-        questionText: q.questionText || q.question,
-        questionText2: q.questionImageUrl,
-        options: q.options || [q.option1, q.option2, q.option3, q.option4].filter(Boolean),
-        correctAnswer: q.correctAnswer || q.correctOption,
-        correctAnswerImage: q.correctAnswerImage,
-        positiveMarks: examDetails.correctMark,
-        negativeMarks: examDetails.negativeMark,
-        optionFiles: [
-          { text: q.option1, image: q.optionImage1 },
-          { text: q.option2, image: q.optionImage2 },
-          { text: q.option3, image: q.optionImage3 },
-          { text: q.option4, image: q.optionImage4 },
-        ].filter((opt) => opt.text),
-        instituteIds: examDetails.instituteIds || [],
-      }));
+      const formattedQuestions = subjectQuestions.map((q) => {
+        // Use the options array directly from the response
+        const optionFiles = q.options ? q.options.map(opt => ({
+          text: opt.optionText,
+          image: opt.optionImageUrl,
+          isCorrect: opt.isCorrect
+        })) : [];
+        
+        // Find correct answer
+        const correctOption = q.options?.find(opt => opt.isCorrect);
+        
+        return {
+          id: q.id,
+          questionText: q.questionText || q.question,
+          questionText2: q.questionImageUrl,
+          options: q.options || [],
+          correctAnswer: correctOption?.optionText || "",
+          correctAnswerImage: null,
+          positiveMarks: examDetails.correctMark,
+          negativeMarks: examDetails.negativeMark,
+          optionFiles: optionFiles,
+          instituteIds: examDetails.instituteIds || [],
+        };
+      });
       setQuestions(formattedQuestions);
     }
   };
@@ -314,12 +338,74 @@ const View = () => {
     return `${config.apiUrl}${path}`;
   };
 
+  // New function to handle basic details edit
+  const handleBasicDetailsEdit = () => {
+    setIsEditingBasicDetails(true);
+  };
+
+  // New function to save basic details
+  const saveBasicDetails = async () => {
+    try {
+      const S = JSON.parse(localStorage.getItem("user"));
+      const token = S?.token;
+
+      if (!token) {
+        console.error("No auth token available");
+        return;
+      }
+// {
+//   "testName": "Updated Physics Mock Test",
+//   "durationMinutes": 180,
+//   "correctMark": 4.0,
+//   "negativeMark": 1.0,
+//   "instituteIds": [101, 102],
+// }
+      const payload = {
+        testName: editedDetails.testName,
+        correctMark: parseFloat(editedDetails.positiveMarks),
+        negativeMark: parseFloat(editedDetails.negativeMarks),
+        // Add other fields that should be non-editable but need to be sent
+        // instituteIds: selectedInstitutes.map(inst => inst.value),
+        // examName: examDetails?.examName,
+        // subjectNames: subjects.map(sub => sub.name)
+      };
+
+      const apiUrl = `${config.apiUrl}/tests/${test_id}`;
+
+      await axios.put(apiUrl, payload, {
+        headers: {
+          Authorization: `${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      setIsEditingBasicDetails(false);
+      // Refresh exam details to get updated data
+      fetchExamDetails();
+      
+    } catch (error) {
+      console.error("Failed to update basic details:", error);
+    }
+  };
+
+  // New function to cancel basic details editing
+  const cancelBasicDetailsEditing = () => {
+    setIsEditingBasicDetails(false);
+    // Reset to original values
+    if (examDetails) {
+      setEditedDetails({
+        testName: examDetails.testName || "",
+        positiveMarks: examDetails.correctMark || "",
+        negativeMarks: examDetails.negativeMark || "",
+      });
+    }
+  };
+
   const handleEditQuestion = (index) => {
     setEditingIndex(index);
     const questionToEdit = questions[index];
     setEditingQuestion(JSON.parse(JSON.stringify(questionToEdit))); // Deep copy
     setText(questionToEdit.questionText);
-    setIsEditingDetails(true);
   };
 
   const handleTextChange = (e) => {
@@ -334,7 +420,7 @@ const View = () => {
     setEditingQuestion((prev) => {
       const updatedOptionFiles = [...prev.optionFiles];
       if (!updatedOptionFiles[optionIndex]) {
-        updatedOptionFiles[optionIndex] = { text: "", image: null };
+        updatedOptionFiles[optionIndex] = { text: "", image: null, isCorrect: false };
       }
       updatedOptionFiles[optionIndex].text = value;
       return {
@@ -365,7 +451,7 @@ const View = () => {
         setEditingQuestion((prev) => {
           const updatedOptionFiles = [...prev.optionFiles];
           if (!updatedOptionFiles[optionIndex]) {
-            updatedOptionFiles[optionIndex] = { text: "", image: null };
+            updatedOptionFiles[optionIndex] = { text: "", image: null, isCorrect: false };
           }
           updatedOptionFiles[optionIndex].image = reader.result;
           return {
@@ -404,58 +490,75 @@ const View = () => {
       return;
     }
 
-    const updatedQuestions = [...questions];
-    updatedQuestions[editingIndex] = {
-      ...editingQuestion,
-      id: questions[editingIndex]?.id || editingQuestion?.id || crypto.randomUUID(),
-      positiveMarks: editedDetails.positiveMarks,
-      negativeMarks: editedDetails.negativeMarks,
-    };
-
-    setQuestions(updatedQuestions);
-
     try {
       const S = JSON.parse(localStorage.getItem("user"));
       const token = S?.token;
 
-      const payload = {
-        question: updatedQuestions[editingIndex],
-        testId: test_id,
-        subjectId: selectedSubject.id,
-        instituteIds: selectedInstitutes.map(inst => inst.value),
-        examType: examDetails?.examType,
-        language: language
+      // Prepare question data payload according to the required format
+      const questionData = {
+        questionText: editingQuestion.questionText,
+        marks: parseFloat(editedDetails.positiveMarks),
+        options: editingQuestion.optionFiles.map((option, index) => ({
+          optionNumber: index + 1,
+          optionText: option.text,
+          isCorrect: editingQuestion.correctAnswer === option.text
+        }))
       };
 
-      await axios.put(`${config.apiUrl}/questions/${updatedQuestions[editingIndex].id}`, payload, {
+      console.log("Saving question data:", questionData); // Debug log
+
+      // Prepare form data for file uploads
+      const formData = new FormData();
+      formData.append('questionData', JSON.stringify(questionData));
+      
+      // Add question image if exists
+      if (editingQuestion.questionText2 && editingQuestion.questionText2.startsWith('data:image')) {
+        const questionImageBlob = dataURLtoBlob(editingQuestion.questionText2);
+        formData.append('questionImage', questionImageBlob, 'question.png');
+      }
+
+      // Add option images if exist
+      editingQuestion.optionFiles.forEach((option, index) => {
+        if (option.image && option.image.startsWith('data:image')) {
+          const optionImageBlob = dataURLtoBlob(option.image);
+          formData.append(`option${index + 1}File`, optionImageBlob, `option${index + 1}.png`);
+        }
+      });
+
+      const apiUrl = `${config.apiUrl}/tests/${test_id}/questions/${editingQuestion.id}`;
+
+      await axios.put(apiUrl, formData, {
         headers: {
           Authorization: `${token}`,
-          "Content-Type": "application/json",
+          "Content-Type": "multipart/form-data",
         },
       });
 
       setEditingIndex(null);
       setEditingQuestion(null);
       setText("");
-      setIsEditingDetails(false);
       fetchExamDetails(); // Refresh data
     } catch (error) {
       console.error("Failed to update question:", error);
     }
   };
 
+  // Helper function to convert data URL to blob
+  const dataURLtoBlob = (dataURL) => {
+    const byteString = atob(dataURL.split(',')[1]);
+    const mimeString = dataURL.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+  };
+
   const cancelEditing = () => {
     setEditingIndex(null);
     setEditingQuestion(null);
     setText("");
-    setIsEditingDetails(false);
-  };
-
-  const handleDetailsEdit = () => {
-    setIsEditingDetails(true);
-    if (questions.length > 0) {
-      handleEditQuestion(0);
-    }
   };
 
   const handleDetailsChange = (e) => {
@@ -506,103 +609,176 @@ const View = () => {
               </div>
             ) : (
               <>
-                <div className="flex flex-wrap gap-1 md:gap-4 mb-2 md:mb-6 mt-1 md:mt-4">
-                  <div className="flex gap-1 md:gap-4 w-full">
-                    <div className="flex-grow">
-                      <div className="bg-white p-2 rounded-md border border-gray-300 shadow-sm flex items-center gap-2">
-                        <input
-                          type="text"
-                          name="testName"
-                          value={editedDetails.testName}
-                          onChange={handleDetailsChange}
-                          className="border border-gray-300 p-2 rounded w-full focus:outline-none focus:ring-2 cursor-not-allowed focus:ring-blue-500"
-                          disabled
-                        />
-                        {!isEditingDetails && (
-                          <FaEdit
-                            className="ml-2 cursor-pointer text-blue-600 hover:text-blue-800"
-                            onClick={handleDetailsEdit}
-                          />
-                        )}
+                {/* Basic Details Section */}
+                <div className="bg-white p-4 rounded-lg shadow-md mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-blue-600">Basic Test Details</h2>
+                    {!isEditingBasicDetails ? (
+                      <button
+                        onClick={handleBasicDetailsEdit}
+                        className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex items-center gap-2"
+                      >
+                        <FaEdit /> Edit Details
+                      </button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={saveBasicDetails}
+                          className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 flex items-center gap-2"
+                        >
+                          <FaSave /> Save
+                        </button>
+                        <button
+                          onClick={cancelBasicDetailsEditing}
+                          className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 flex items-center gap-2"
+                        >
+                          <FaTimes /> Cancel
+                        </button>
                       </div>
-                    </div>
-
-                    <div className="flex-grow bg-white p-2 rounded-md border border-gray-300 shadow-sm text-blue-600 font-semibold">
-                      Exam Type: {examDetails?.examType || "N/A"}
-                    </div>
+                    )}
                   </div>
 
-                  <div className="flex gap-1 md:gap-4 w-full">
-                    <div className="flex-grow bg-white p-2 rounded-md border border-gray-300 shadow-sm text-blue-600 font-semibold">
-                      Subject: {selectedSubject.name || "Select below"}{" "}
-                    </div>
-                    <div className="flex-grow">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Institute - Non Editable */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-600 mb-1">
+                        Institute
+                      </label>
                       <Select
                         options={institutes.map(inst => ({
                           value: inst.id,
                           label: inst.instituteName || `Institute ${inst.id}`
                         }))}
-                        onChange={handleInstituteChange}
                         value={selectedInstitutes}
+                        onChange={handleInstituteChange}
                         isMulti
+                        isDisabled={true} // Non-editable
                         className="basic-multi-select"
                         classNamePrefix="select"
                         placeholder="Select Institute(s)"
-                        styles={{
-                          control: (base) => ({
-                            ...base,
-                            borderColor: "lightgray",
-                            boxShadow: "none",
-                            "&:hover": {
-                              borderColor: "blue",
-                            },
-                          }),
-                        }}
+                      />
+                      <div className="mt-1 text-xs text-gray-500">
+                        Current: {selectedInstitutes.map(inst => inst.label).join(", ") || "No institutes selected"}
+                      </div>
+                    </div>
+
+                    {/* Test Name - Editable */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-600 mb-1">
+                        Test Name
+                      </label>
+                      <input
+                        type="text"
+                        name="testName"
+                        value={editedDetails.testName}
+                        onChange={handleDetailsChange}
+                        className={`border border-gray-300 p-2 rounded w-full focus:outline-none focus:ring-2 ${
+                          isEditingBasicDetails 
+                            ? "focus:ring-blue-500 bg-white" 
+                            : "cursor-not-allowed bg-gray-100"
+                        }`}
+                        disabled={!isEditingBasicDetails}
+                      />
+                    </div>
+
+                    {/* Exam Name - Non Editable */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-600 mb-1">
+                        Exam Name
+                      </label>
+                      <input
+                        type="text"
+                        value={examDetails?.examName || "N/A"}
+                        className="border border-gray-300 p-2 rounded w-full bg-gray-100 cursor-not-allowed"
+                        disabled
+                      />
+                    </div>
+
+                    {/* Subjects - Non Editable */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-600 mb-1">
+                        Subjects
+                      </label>
+                      <input
+                        type="text"
+                        value={subjects.map(sub => sub.name).join(", ") || "N/A"}
+                        className="border border-gray-300 p-2 rounded w-full bg-gray-100 cursor-not-allowed"
+                        disabled
+                      />
+                    </div>
+
+                    {/* Correct Marks - Editable */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-600 mb-1">
+                        Correct Marks
+                      </label>
+                      <input
+                        type="number"
+                        name="positiveMarks"
+                        value={editedDetails.positiveMarks}
+                        onChange={handleDetailsChange}
+                        className={`border border-gray-300 p-2 rounded w-full focus:outline-none focus:ring-2 ${
+                          isEditingBasicDetails 
+                            ? "focus:ring-green-500 bg-white" 
+                            : "cursor-not-allowed bg-gray-100"
+                        }`}
+                        disabled={!isEditingBasicDetails}
+                        step="0.1"
+                        min="0"
+                      />
+                    </div>
+
+                    {/* Negative Marks - Editable */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-600 mb-1">
+                        Negative Marks
+                      </label>
+                      <input
+                        type="number"
+                        name="negativeMarks"
+                        value={editedDetails.negativeMarks}
+                        onChange={handleDetailsChange}
+                        className={`border border-gray-300 p-2 rounded w-full focus:outline-none focus:ring-2 ${
+                          isEditingBasicDetails 
+                            ? "focus:ring-red-500 bg-white" 
+                            : "cursor-not-allowed bg-gray-100"
+                        }`}
+                        disabled={!isEditingBasicDetails}
+                        step="0.1"
+                        min="0"
                       />
                     </div>
                   </div>
+                </div>
 
-                  <div className="flex gap-1 md:gap-4 w-full">
-                    <div className="flex-grow">
-                      <div className="bg-white p-2 rounded-md border border-gray-300 shadow-sm">
-                        <input
-                          type="number"
-                          name="positiveMarks"
-                          value={editedDetails.positiveMarks}
-                          onChange={handleDetailsChange}
-                          className="border border-gray-300 p-2 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500"
-                          disabled={!isEditingDetails}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex-grow">
-                      <div className="bg-white p-2 rounded-md border border-gray-300 shadow-sm">
-                        <input
-                          type="number"
-                          name="negativeMarks"
-                          value={editedDetails.negativeMarks}
-                          onChange={handleDetailsChange}
-                          className="border border-gray-300 p-2 rounded w-full focus:outline-none focus:ring-2 focus:ring-red-500"
-                          disabled={!isEditingDetails}
-                        />
-                      </div>
-                    </div>
+                {/* Additional Info */}
+                <div className="flex flex-wrap gap-4 mb-6">
+                  <div className="bg-white p-3 rounded-md border border-gray-300 shadow-sm text-blue-600 font-semibold">
+                    Exam Type: {examDetails?.examType || "N/A"}
+                  </div>
+                  <div className="bg-white p-3 rounded-md border border-gray-300 shadow-sm text-blue-600 font-semibold">
+                    Duration: {examDetails?.durationMinutes || "N/A"} minutes
+                  </div>
+                  <div className="bg-white p-3 rounded-md border border-gray-300 shadow-sm text-blue-600 font-semibold">
+                    Total Questions: {examDetails?.totalQuestions || "N/A"}
+                  </div>
+                  <div className="bg-white p-3 rounded-md border border-gray-300 shadow-sm text-blue-600 font-semibold">
+                    Total Marks: {examDetails?.totalMarks || "N/A"}
                   </div>
                 </div>
 
                 {/* Only show subject dropdown for exam-wise tests */}
                 {examDetails?.examType === "EXAM_WISE" && subjects.length > 1 && (
-                  <div className="mb-2 md:mb-6">
+                  <div className="mb-6">
                     <label
                       htmlFor="subject"
-                      className="block text-xs md:text-lg font-semibold text-gray-600 tracking-wide"
+                      className="block text-lg font-semibold text-gray-600 tracking-wide"
                     >
                       Select Subject:
                     </label>
                     <select
                       id="subject"
-                      className="mt-1 md:mt-2 block w-full p-1 md:p-3 border border-dashed rounded-lg bg-gray-50 shadow-inner border-gray-300 text-gray-700"
+                      className="mt-2 block w-full p-3 border border-dashed rounded-lg bg-gray-50 shadow-inner border-gray-300 text-gray-700"
                       value={selectedSubject.name}
                       onChange={handleSubjectChange}
                     >
@@ -616,36 +792,37 @@ const View = () => {
                   </div>
                 )}
 
+                {/* Questions Section */}
                 {questions.length > 0 ? (
-                  <div className="space-y-2 md:space-y-6">
+                  <div className="space-y-6">
                     {questions.map((question, index) => (
                       <div
                         key={index}
-                        className="bg-white p-2 md:p-6 rounded-lg shadow-lg w-full"
+                        className="bg-white p-6 rounded-lg shadow-lg w-full"
                       >
                         {editingIndex === index ? (
-                          <div className="mb-2 sm:mb-4 border p-2 sm:p-4 rounded-md shadow-md bg-gray-50">
-                            <div className="flex justify-between items-center mb-1 sm:mb-2">
-                              <h4 className="font-semibold text-sm sm:text-lg">
+                          <div className="mb-4 border p-4 rounded-md shadow-md bg-gray-50">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-semibold text-lg">
                                 Edit Question {index + 1}
                               </h4>
                               <div className="flex gap-2">
                                 <button
                                   onClick={saveEditedQuestion}
-                                  className="bg-green-500 text-white px-2 py-1 rounded-md hover:bg-green-600 text-xs sm:text-sm"
+                                  className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 text-sm"
                                 >
                                   Save
                                 </button>
                                 <button
                                   onClick={cancelEditing}
-                                  className="bg-gray-500 text-white px-2 py-1 rounded-md hover:bg-gray-600 text-xs sm:text-sm"
+                                  className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 text-sm"
                                 >
                                   Cancel
                                 </button>
                               </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 mb-1 sm:mb-2">
+                            <div className="flex flex-col gap-4 mb-2">
                               <div className="w-full">
                                 <div
                                   ref={renderRef}
@@ -663,10 +840,10 @@ const View = () => {
                             </div>
 
                             <div className="mt-2 mb-6">
-                              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
+                              <label className="block text-gray-700 font-semibold mb-2">
                                 Upload PNG Image For Question
                               </label>
-                              <div className="flex items-center gap-4 flex-col sm:flex-row">
+                              <div className="flex items-center gap-4">
                                 <input
                                   type="file"
                                   ref={fileInputRef}
@@ -687,7 +864,7 @@ const View = () => {
                                       }
                                     }
                                   }}
-                                  className="border p-1 sm:p-2 rounded-md focus:outline-none focus:ring focus:ring-blue-400 transition duration-200 cursor-pointer text-xs sm:text-sm"
+                                  className="border p-2 rounded-md focus:outline-none focus:ring focus:ring-blue-400 transition duration-200 cursor-pointer"
                                 />
                                 {editingQuestion.questionText2 && (
                                   <div className="relative">
@@ -706,7 +883,7 @@ const View = () => {
                                           fileInputRef.current.value = null;
                                         }
                                       }}
-                                      className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full focus:outline-none text-xs sm:text-sm"
+                                      className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full focus:outline-none"
                                     >
                                       <FaTrashAlt size={10} />
                                     </button>
@@ -715,8 +892,8 @@ const View = () => {
                               </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 mb-1 sm:mb-2">
-                              {editingQuestion.optionFiles.map(
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              {editingQuestion.optionFiles && editingQuestion.optionFiles.map(
                                 (option, optionIndex) => (
                                   <div key={optionIndex} className="flex-grow">
                                     <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 ease-in-out">
@@ -726,7 +903,7 @@ const View = () => {
                                             optionIndex
                                           ] = el)
                                         }
-                                        className="p-2 mb-2 border rounded bg-gray-100 whitespace-pre-wrap min-h-[40px] text-sm"
+                                        className="p-2 mb-2 border rounded bg-gray-100 whitespace-pre-wrap min-h-[40px]"
                                         dangerouslySetInnerHTML={{
                                           __html: option?.text || "",
                                         }}
@@ -744,7 +921,7 @@ const View = () => {
                                             e.target.value
                                           )
                                         }
-                                        className="border p-1 sm:p-2 w-full rounded-md focus:outline-none focus:ring focus:ring-blue-400 text-xs sm:text-base"
+                                        className="border p-2 w-full rounded-md focus:outline-none focus:ring focus:ring-blue-400"
                                         required
                                         rows={3}
                                       />
@@ -765,7 +942,7 @@ const View = () => {
                                               optionIndex
                                             )
                                           }
-                                          className="border p-1 sm:p-2 w-full rounded-md focus:outline-none focus:ring focus:ring-blue-400 text-xs sm:text-base"
+                                          className="border p-2 w-full rounded-md focus:outline-none focus:ring focus:ring-blue-400"
                                         />
 
                                         {option?.image && (
@@ -791,7 +968,7 @@ const View = () => {
                                                   ].value = null;
                                                 }
                                               }}
-                                              className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 rounded-full focus:outline-none text-xs sm:text-sm flex items-center justify-center hover:bg-red-600"
+                                              className="absolute top-0 right-0 bg-red-500 text-white w-4 h-4 rounded-full focus:outline-none text-sm flex items-center justify-center hover:bg-red-600"
                                               aria-label="Delete image"
                                             >
                                               ×
@@ -806,16 +983,16 @@ const View = () => {
                             </div>
 
                             <div className="relative w-full mt-6">
-                              <label className="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">
+                              <label className="block text-gray-700 font-semibold mb-2">
                                 Correct Answer
                               </label>
                               <Select
-                                options={editingQuestion.optionFiles.map((option, idx) => ({
+                                options={editingQuestion.optionFiles ? editingQuestion.optionFiles.map((option, idx) => ({
                                   value: idx,
                                   label: option.text,
                                   image: option.image
-                                }))}
-                                value={editingQuestion.optionFiles.find((opt, idx) => 
+                                })) : []}
+                                value={editingQuestion.optionFiles ? editingQuestion.optionFiles.find((opt, idx) => 
                                   opt.text === editingQuestion.correctAnswer
                                 ) ? {
                                   value: editingQuestion.optionFiles.findIndex(
@@ -823,7 +1000,7 @@ const View = () => {
                                   ),
                                   label: editingQuestion.correctAnswer,
                                   image: editingQuestion.correctAnswerImage
-                                } : null}
+                                } : null : null}
                                 onChange={(selectedOption) => {
                                   const updatedEditingQuestion = { ...editingQuestion };
                                   updatedEditingQuestion.correctAnswer = selectedOption?.label || "";
@@ -878,7 +1055,7 @@ const View = () => {
                           <>
                             <div className="mb-4">
                               <div className="flex justify-between items-center">
-                                <h3 className="text-sm md:text-xl font-semibold">
+                                <h3 className="text-xl font-semibold">
                                   <span className="font-bold text-blue-600">
                                     Question {index + 1}:
                                   </span>{" "}
@@ -890,7 +1067,7 @@ const View = () => {
                                 </h3>
                                 <button
                                   onClick={() => handleEditQuestion(index)}
-                                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs md:text-sm"
+                                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                                 >
                                   <FaEdit /> Edit
                                 </button>
@@ -917,7 +1094,7 @@ const View = () => {
                                       />
                                     </div>
                                   ) : (
-                                    <p className="mt-2 text-sm md:text-lg">
+                                    <p className="mt-2 text-lg">
                                       {question.questionText2}
                                     </p>
                                   )}
@@ -925,51 +1102,53 @@ const View = () => {
                               )}
                             </div>
 
-                            <div className="mt-1 md:mt-4">
-                              <h4 className="text-sm md:text-xl font-bold text-blue-600 mb-1 md:mb-2">
+                            <div className="mt-4">
+                              <h4 className="text-xl font-bold text-blue-600 mb-2">
                                 Options:
                               </h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-4">
-                                {question.optionFiles &&
-                                  question.optionFiles.map((option, idx) => {
-                                    const optionLabel = String.fromCharCode(
-                                      65 + idx
-                                    );
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className="bg-gray-50 p-1 md:p-4 rounded-lg shadow-md"
-                                      >
-                                        <label className="block text-xs md:text-lg font-semibold text-gray-700">
-                                          {optionLabel}){" "}
-                                          <span
-                                            ref={(el) =>
-                                              (optionTextRefs.current[idx] = el)
-                                            }
-                                            dangerouslySetInnerHTML={{
-                                              __html: option.text,
-                                            }}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+{question.options && question.options.map((option, idx) => {
+                                  const optionLabel = String.fromCharCode(
+                                    65 + idx
+                                  );
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={`bg-gray-50 p-4 rounded-lg shadow-md ${
+                                        option.isCorrect ? 'border-2 border-green-500 bg-green-50' : ''
+                                      }`}
+                                    >
+                                     <label className="block text-lg font-semibold text-gray-700">
+            {optionLabel}){" "}
+            <span
+              ref={(el) => (optionTextRefs.current[idx] = el)}
+              dangerouslySetInnerHTML={{
+                __html: option.optionText,
+              }}
+            />
+            {option.isCorrect && (
+              <span className="ml-2 text-green-600 text-sm">✓ Correct</span>
+            )}
+          </label>
+                                      {option.image && (
+                                        <div className="relative mt-2">
+                                          <img
+                                            src={getImageUrl(option.optionImageUrl)}
+                                            alt={`Option ${optionLabel} image`}
+                                            className="max-w-xs max-h-24 rounded-lg shadow-md mt-2"
                                           />
-                                        </label>
-                                        {option.image && (
-                                          <div className="relative mt-2">
-                                            <img
-                                              src={getImageUrl(option.image)}
-                                              alt={`Option ${optionLabel} image`}
-                                              className="max-w-xs max-h-24 rounded-lg shadow-md mt-2"
-                                            />
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                            <div className="mt-1 md:mt-4 p-1 md:p-3 bg-blue-100 rounded text-blue-800">
+                            <div className="mt-4 p-3 bg-green-100 rounded text-green-800">
                               <div className="flex justify-between items-center">
                                 <div>
                                   <strong>Correct Answer:</strong>
-                                  <span className="ml-1 md:ml-2">
+                                  <span className="ml-2">
                                     {question.correctAnswer}
                                   </span>
                                 </div>
