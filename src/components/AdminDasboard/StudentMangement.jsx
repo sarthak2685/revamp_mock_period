@@ -141,17 +141,20 @@ const StudentManagement = ({ user }) => {
       const responses = await Promise.all(
         newStudents.map((student) =>
           axios.post(
-            `${config.apiUrl}/admin-student-crud/`,
+            `${config.apiUrl}/user`,
             {
               name: student.name,
-              mobile_no: student.mobile_no,
+              phoneo: student.mobile_no,
               institute_name: "none",
-              email_id: "none",
+              email: "none",
+              // instituteEmail: ,
+              // instituteId: 
               password_encoded: student.password,
+              role: "STUDENT",
             },
             {
               headers: {
-                Authorization: `Token ${token}`,
+                Authorization: `${token}`,
                 "Content-Type": "application/json",
               },
             }

@@ -39,9 +39,9 @@ const View = () => {
   const queryParams = new URLSearchParams(location.search);
   const testName = queryParams.get("test");
   const test_id = queryParams.get("test_id");
-  const language = queryParams.get("lang") || queryParams.get("language") || "en"; // Handle both parameter names
+  const language = queryParams.get("lang") || queryParams.get("language") || "en";
   const examId = queryParams.get("exam_id");
-  const subjectId = queryParams.get("subject_id"); // For subject tests
+  const subjectId = queryParams.get("subject_id");
 
   // Initialize MathJax and set up configuration
   useEffect(() => {
@@ -103,7 +103,7 @@ const View = () => {
       setUser(JSON.parse(storedUser));
     }
 
-    if (examId || subjectId) {
+    if (test_id) {
       fetchExamDetails();
     } else {
       setLoading(false);
@@ -112,7 +112,7 @@ const View = () => {
     optionMathJaxRefs.current = optionMathJaxRefs.current.slice(0, 4);
     optionFileInputRefs.current = optionFileInputRefs.current.slice(0, 4);
     optionTextRefs.current = optionTextRefs.current.slice(0, 4);
-  }, [examId, subjectId]);
+  }, [test_id]);
 
   const fetchExamDetails = async () => {
     setLoading(true);
@@ -126,89 +126,105 @@ const View = () => {
         return;
       }
 
-      let apiUrl = '';
-      
-      // Use appropriate API endpoint based on whether it's an exam or subject test &language=${language}
-      if (examId) {
-        apiUrl = `${config.apiUrl}/tests/${test_id}/with-questions`;
-      }else {
-        console.error("No exam_id or subject_id provided");
-        setLoading(false);
-        return;
-      }
+      const apiUrl = `${config.apiUrl}/tests/${test_id}/with-questions`;
 
       const { data } = await axios.get(apiUrl, {
         headers: { Authorization: `${token}` },
       });
 
       setExamDetails(data);
-
-      const examData = data.data[testName || Object.keys(data.data)[1]];
-      const positiveMarks = examData?._positive_marks || "";
-      const negativeMarks = examData?._negative_marks || "";
-
+      
+      // Set basic exam details
       setEditedDetails({
-        testName: testName || Object.keys(data.data)[1],
-        positiveMarks,
-        negativeMarks,
+        testName: data.testName || "",
+        positiveMarks: data.correctMark || "",
+        negativeMarks: data.negativeMark || "",
       });
 
-      if (data.data) {
-        if (examData) {
-          const subjectsList = Object.keys(examData)
-            .filter(
-              (key) =>
-                typeof examData[key] === "object" &&
-                !Array.isArray(examData[key]) &&
-                key !== "exam_duration" &&
-                !key.startsWith("_")
-            )
-            .map((subjectName) => {
-              const firstQuestion = examData[subjectName]?.questions?.[0];
-              return {
-                name: subjectName,
-                id: firstQuestion?.subject_id || "",
-              };
-            });
-
+      // Handle different exam types
+      if (data.examType === "SUBJECT_WISE") {
+        // For subject-wise exams, there's only one subject
+        const subjectData = {
+          name: data.subjectName || "Subject",
+          id: data.subjectId || ""
+        };
+        setSelectedSubject(subjectData);
+        setSubjects([subjectData]);
+        
+        // Process questions for subject-wise exam
+        if (data.questions && data.questions.length > 0) {
+          const formattedQuestions = data.questions.map((q) => ({
+            id: q.id,
+            questionText: q.questionText || q.question,
+            questionText2: q.questionImageUrl,
+            options: q.options || [q.option1, q.option2, q.option3, q.option4].filter(Boolean),
+            correctAnswer: q.correctAnswer || q.correctOption,
+            correctAnswerImage: q.correctAnswerImage,
+            positiveMarks: data.correctMark,
+            negativeMarks: data.negativeMark,
+            optionFiles: [
+              { text: q.option1, image: q.optionImage1 },
+              { text: q.option2, image: q.optionImage2 },
+              { text: q.option3, image: q.optionImage3 },
+              { text: q.option4, image: q.optionImage4 },
+            ].filter((opt) => opt.text),
+            instituteIds: data.instituteIds || [],
+          }));
+          setQuestions(formattedQuestions);
+        }
+      } else {
+        // For exam-wise exams, handle multiple subjects
+        if (data.subjectNames && data.subjectNames.length > 0) {
+          const subjectsList = data.subjectNames.map((subjectName, index) => ({
+            name: subjectName,
+            id: data.subjectsIds?.[index] || ""
+          }));
           setSubjects(subjectsList);
 
           if (subjectsList.length > 0 && !selectedSubject.name) {
             const firstSubject = subjectsList[0];
             setSelectedSubject(firstSubject);
-
-            if (examData[firstSubject.name]?.questions) {
-              const formattedQuestions = examData[
-                firstSubject.name
-              ].questions.map((q) => ({
+            
+            // Process questions for the first subject
+            if (data.questions && data.questions.length > 0) {
+              const subjectQuestions = data.questions.filter(q => 
+                q.subjectName === firstSubject.name || !q.subjectName
+              );
+              
+              const formattedQuestions = subjectQuestions.map((q) => ({
                 id: q.id,
-                questionText: q.question,
-                questionText2: q.question2,
-                options: [
-                  q.option_1,
-                  q.option_2,
-                  q.option_3,
-                  q.option_4,
-                  q.option_5,
-                ].filter(Boolean),
-                correctAnswer: q.correct_ans,
-                correctAnswerImage: q.correct_ans2,
-                positiveMarks: q.positive_marks || positiveMarks,
-                negativeMarks: q.negative_marks || negativeMarks,
+                questionText: q.questionText || q.question,
+                questionText2: q.questionImageUrl,
+                options: q.options || [q.option1, q.option2, q.option3, q.option4].filter(Boolean),
+                correctAnswer: q.correctAnswer || q.correctOption,
+                correctAnswerImage: q.correctAnswerImage,
+                positiveMarks: data.correctMark,
+                negativeMarks: data.negativeMark,
                 optionFiles: [
-                  { text: q.option_1, image: q.file_1 },
-                  { text: q.option_2, image: q.file_2 },
-                  { text: q.option_3, image: q.file_3 },
-                  { text: q.option_4, image: q.file_4 },
-                  { text: q.option_5, image: q.file_5 },
+                  { text: q.option1, image: q.optionImage1 },
+                  { text: q.option2, image: q.optionImage2 },
+                  { text: q.option3, image: q.optionImage3 },
+                  { text: q.option4, image: q.optionImage4 },
                 ].filter((opt) => opt.text),
+                instituteIds: data.instituteIds || [],
               }));
-
               setQuestions(formattedQuestions);
             }
           }
         }
       }
+
+      // Set institute data if available
+      if (data.instituteIds) {
+        // You might need to fetch institute details based on IDs
+        // For now, we'll set the selected institutes
+        const instituteOptions = data.instituteIds.map(id => ({
+          value: id,
+          label: `Institute ${id}`
+        }));
+        setSelectedInstitutes(instituteOptions);
+      }
+
     } catch (error) {
       console.error("Failed to fetch exam details:", error);
     } finally {
@@ -236,8 +252,6 @@ const View = () => {
       const result = await response.json();
 
       if (Array.isArray(result)) {
-          // setAdmins(result);
-
         setInstitutes(result);
       } else {
         console.error("Expected an array but received:", result.data);
@@ -262,47 +276,31 @@ const View = () => {
     ) || { name: selectedSubjectName, id: "" };
     setSelectedSubject(subject);
 
-    if (examDetails?.data && testName) {
-      const examData =
-        examDetails.data[testName] ||
-        examDetails.data[Object.keys(examDetails.data)[1]];
-
-      if (examData && examData[subject.name]?.questions) {
-        const formattedQuestions = examData[subject.name].questions.map(
-          (q) => ({
-            id: q.id,
-            questionText: q.question,
-            questionText2: q.question2,
-            options: [q.option_1, q.option_2, q.option_3, q.option_4, q.option_5].filter(
-              Boolean
-            ),
-            correctAnswer: q.correct_ans,
-            correctAnswerImage: q.correct_ans2,
-            positiveMarks: q.positive_marks || editedDetails.positiveMarks,
-            negativeMarks: q.negative_marks || editedDetails.negativeMarks,
-            optionFiles: [
-              { text: q.option_1, image: q.file_1 },
-              { text: q.option_2, image: q.file_2 },
-              { text: q.option_3, image: q.file_3 },
-              { text: q.option_4, image: q.file_4 },
-               { text: q.option_5, image: q.file_5 },
-            ].filter((opt) => opt.text),
-          })
-        );
-        setQuestions(formattedQuestions);
-      } else {
-        setQuestions([]);
-      }
+    // Filter questions by selected subject for exam-wise tests
+    if (examDetails?.examType === "EXAM_WISE" && examDetails.questions) {
+      const subjectQuestions = examDetails.questions.filter(q => 
+        q.subjectName === subject.name || !q.subjectName
+      );
+      
+      const formattedQuestions = subjectQuestions.map((q) => ({
+        id: q.id,
+        questionText: q.questionText || q.question,
+        questionText2: q.questionImageUrl,
+        options: q.options || [q.option1, q.option2, q.option3, q.option4].filter(Boolean),
+        correctAnswer: q.correctAnswer || q.correctOption,
+        correctAnswerImage: q.correctAnswerImage,
+        positiveMarks: examDetails.correctMark,
+        negativeMarks: examDetails.negativeMark,
+        optionFiles: [
+          { text: q.option1, image: q.optionImage1 },
+          { text: q.option2, image: q.optionImage2 },
+          { text: q.option3, image: q.optionImage3 },
+          { text: q.option4, image: q.optionImage4 },
+        ].filter((opt) => opt.text),
+        instituteIds: examDetails.instituteIds || [],
+      }));
+      setQuestions(formattedQuestions);
     }
-  };
-
-  const getExamData = () => {
-    if (!examDetails?.data) return null;
-    const examKey =
-      testName ||
-      Object.keys(examDetails.data).find((key) => key !== "exam_domain");
-    if (!examKey) return null;
-    return examDetails.data[examKey];
   };
 
   const getImageUrl = (path) => {
@@ -409,10 +407,7 @@ const View = () => {
     const updatedQuestions = [...questions];
     updatedQuestions[editingIndex] = {
       ...editingQuestion,
-      id:
-        questions[editingIndex]?.id ||
-        editingQuestion?.id ||
-        crypto.randomUUID(),
+      id: questions[editingIndex]?.id || editingQuestion?.id || crypto.randomUUID(),
       positiveMarks: editedDetails.positiveMarks,
       negativeMarks: editedDetails.negativeMarks,
     };
@@ -423,70 +418,16 @@ const View = () => {
       const S = JSON.parse(localStorage.getItem("user"));
       const token = S?.token;
 
-      const payload = updatedQuestions.map((changedQuestion) => {
-        const originalQuestion =
-          questions.find((q) => q.id === changedQuestion.id) || {};
+      const payload = {
+        question: updatedQuestions[editingIndex],
+        testId: test_id,
+        subjectId: selectedSubject.id,
+        instituteIds: selectedInstitutes.map(inst => inst.value),
+        examType: examDetails?.examType,
+        language: language
+      };
 
-        const isNewFile = (file) => {
-          return file && file.startsWith("data:image");
-        };
-
-        const imageData = {};
-
-        if (isNewFile(changedQuestion.questionText2)) {
-          imageData.question2 = changedQuestion.questionText2;
-        } else if (
-          changedQuestion.questionText2 !== originalQuestion.questionText2
-        ) {
-          imageData.question2 = changedQuestion.questionText2 || null;
-        }
-
-        if (isNewFile(changedQuestion.correctAnswerImage)) {
-          imageData.correct_answer2 = changedQuestion.correctAnswerImage;
-        } else if (
-          changedQuestion.correctAnswerImage !==
-          originalQuestion.correctAnswerImage
-        ) {
-          imageData.correct_answer2 =
-            changedQuestion.correctAnswerImage || null;
-        }
-
-        for (let i = 0; i < 5; i++) {
-          const originalOption = originalQuestion.optionFiles?.[i] || {};
-          const changedOption = changedQuestion.optionFiles?.[i] || {};
-
-          if (isNewFile(changedOption.image)) {
-            imageData[`file_${i + 1}`] = changedOption.image;
-          } else if (changedOption.image !== originalOption.image) {
-            imageData[`file_${i + 1}`] = changedOption.image || null;
-          }
-        }
-
-        return {
-          id: changedQuestion.id,
-          question: changedQuestion.questionText || "",
-          option_1: changedQuestion.optionFiles?.[0]?.text || "",
-          option_2: changedQuestion.optionFiles?.[1]?.text || "",
-          option_3: changedQuestion.optionFiles?.[2]?.text || "",
-          option_4: changedQuestion.optionFiles?.[3]?.text || "",
-          option_5: changedQuestion.optionFiles?.[4]?.text || "",
-          correct_answer: changedQuestion.correctAnswer || "",
-          marks: editedDetails.positiveMarks || changedQuestion.positiveMarks,
-          negative_marks:
-            editedDetails.negativeMarks ||
-            changedQuestion.negativeMarks ||
-            "0.50",
-          language: language, // Use the language from query parameter
-          institutes: selectedInstitutes?.map((inst) => inst.value) || [],
-          for_exam_subjects_o: [selectedSubject.id] || " ",
-          for_exam_chapter_o: [],
-          for_exam: examId,
-          test_name: editedDetails.testName,
-          ...imageData,
-        };
-      });
-
-      await axios.put(`${config.apiUrl}/bulk-update-questions/`, payload, {
+      await axios.put(`${config.apiUrl}/questions/${updatedQuestions[editingIndex].id}`, payload, {
         headers: {
           Authorization: `${token}`,
           "Content-Type": "application/json",
@@ -497,9 +438,9 @@ const View = () => {
       setEditingQuestion(null);
       setText("");
       setIsEditingDetails(false);
-      fetchExamDetails();
+      fetchExamDetails(); // Refresh data
     } catch (error) {
-      console.error("Failed to update questions and exam details:", error);
+      console.error("Failed to update question:", error);
     }
   };
 
@@ -554,8 +495,8 @@ const View = () => {
           <DashboardHeader user={user} toggleSidebar={toggleSidebar} />
           <div className="p-4 md:p-8">
             <h1 className="text-sm md:text-3xl font-bold mb-2 md:mb-6">
-              {testName
-                ? `Questions for ${testName} (${language === 'hi' ? 'Hindi' : 'English'})`
+              {examDetails?.testName
+                ? `Questions for ${examDetails.testName} (${language === 'hi' ? 'Hindi' : 'English'})`
                 : "Questions"}
             </h1>
 
@@ -587,7 +528,7 @@ const View = () => {
                     </div>
 
                     <div className="flex-grow bg-white p-2 rounded-md border border-gray-300 shadow-sm text-blue-600 font-semibold">
-                      Domain: {examDetails?.data?.exam_domain || "N/A"}
+                      Exam Type: {examDetails?.examType || "N/A"}
                     </div>
                   </div>
 
@@ -597,7 +538,10 @@ const View = () => {
                     </div>
                     <div className="flex-grow">
                       <Select
-                        options={institutes}
+                        options={institutes.map(inst => ({
+                          value: inst.id,
+                          label: inst.instituteName || `Institute ${inst.id}`
+                        }))}
                         onChange={handleInstituteChange}
                         value={selectedInstitutes}
                         isMulti
@@ -647,27 +591,30 @@ const View = () => {
                   </div>
                 </div>
 
-                <div className="mb-2 md:mb-6">
-                  <label
-                    htmlFor="subject"
-                    className="block text-xs md:text-lg font-semibold text-gray-600 tracking-wide"
-                  >
-                    Select Subject:
-                  </label>
-                  <select
-                    id="subject"
-                    className="mt-1 md:mt-2 block w-full p-1 md:p-3 border border-dashed rounded-lg bg-gray-50 shadow-inner border-gray-300 text-gray-700"
-                    value={selectedSubject.name}
-                    onChange={handleSubjectChange}
-                  >
-                    <option value="">Choose Subject</option>
-                    {subjects.map((subject, index) => (
-                      <option key={index} value={subject.name}>
-                        {subject.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Only show subject dropdown for exam-wise tests */}
+                {examDetails?.examType === "EXAM_WISE" && subjects.length > 1 && (
+                  <div className="mb-2 md:mb-6">
+                    <label
+                      htmlFor="subject"
+                      className="block text-xs md:text-lg font-semibold text-gray-600 tracking-wide"
+                    >
+                      Select Subject:
+                    </label>
+                    <select
+                      id="subject"
+                      className="mt-1 md:mt-2 block w-full p-1 md:p-3 border border-dashed rounded-lg bg-gray-50 shadow-inner border-gray-300 text-gray-700"
+                      value={selectedSubject.name}
+                      onChange={handleSubjectChange}
+                    >
+                      <option value="">Choose Subject</option>
+                      {subjects.map((subject, index) => (
+                        <option key={index} value={subject.name}>
+                          {subject.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {questions.length > 0 ? (
                   <div className="space-y-2 md:space-y-6">

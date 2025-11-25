@@ -141,9 +141,7 @@ const handleSubjectSubmit = async () => {
       return;
     }
 
-    const payload = {
-      subjectId: Number(subjectId)  // only ID
-    };
+
 
     let response;
     if (editingSubjectIndex !== null) {
@@ -159,9 +157,9 @@ const handleSubjectSubmit = async () => {
       setSubjects(updated);
     } else {
       // ADD subject
-      response = await axios.put(
-        `${config.apiUrl}/exams/${selectedExamId}`,
-        payload,
+      response = await axios.post(
+        `${config.apiUrl}/exams/${selectedExamId}/subjects`,
+        [Number(subjectId)],
         { headers: { Authorization: token } }
       );
 
@@ -273,8 +271,8 @@ const handleSubjectSubmit = async () => {
                     <img src={ex.examImageUrl} alt="" />
                   </div> */}
                  <ul className="ml-5 mt-2 space-y-2">
-  {ex.subjectName && ex.subjectName.length > 0 ? (
-    ex.subjectName.map((sub, idx) => (
+  {ex.subjectNames && ex.subjectNames.length > 0 ? (
+    ex.subjectNames.map((sub, idx) => (
       <li
         key={idx}
         className="flex justify-between items-center"
