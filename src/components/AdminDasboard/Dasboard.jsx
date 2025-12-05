@@ -19,7 +19,7 @@ const Dashboard = () => {
   const token = user.token;
 
   const institueName = user.institute_name;
-  console.log("user", user, institueName);
+  console.log("user", institueName);
 
   const fetchPerformanceData = async () => {
     try {

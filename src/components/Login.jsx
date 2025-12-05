@@ -49,6 +49,7 @@ console.log("response",response)
     role: response.data.role,
     type: response.data.type,
     id: response.data.id,
+    instituteId: response.data.instituteId,
   };
 
   localStorage.setItem("user", JSON.stringify(userData));
@@ -58,10 +59,10 @@ console.log("response",response)
     navigate("/super-admin");
   } else if (response.data.role === "ADMIN") {
     navigate("/admin");
-    setTimeout(() => window.location.reload(), 0);
+    // setTimeout(() => window.location.reload(), 0);
   } else if (response.data.role === "STUDENT") {
     navigate("/");
-    setTimeout(() => window.location.reload(), 0);
+    // setTimeout(() => window.location.reload(), 0);
   } 
       } else {
         setError("Account Expired. Please Renew");

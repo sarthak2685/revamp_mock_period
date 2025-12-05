@@ -143,19 +143,79 @@ const View = () => {
         negativeMarks: data.negativeMark || "",
       });
 
-      // Handle institute data - FIXED
+      // Handle institute data
       if (data.instituteNames && data.instituteNames.length > 0) {
         const instituteOptions = data.instituteNames.map((name, index) => ({
           value: data.instituteIds?.[index] || `inst-${index}`,
           label: name
         }));
-        console.log("Setting institutes:", instituteOptions); // Debug log
+        console.log("Setting institutes:", instituteOptions);
         setSelectedInstitutes(instituteOptions);
       }
 
-      // Handle different exam types
-      if (data.examType === "SUBJECT_WISE") {
-        // For subject-wise exams, there's only one subject
+      // Handle subjects from questionsBySubject
+      if (data.questionsBySubject) {
+        // Extract subject names from the questionsBySubject object
+        const subjectNames = Object.keys(data.questionsBySubject);
+        
+        // Map subject names to subject objects
+        const subjectsList = subjectNames.map((subjectName) => {
+          // Find the first question to get subjectId
+          const firstQuestion = data.questionsBySubject[subjectName]?.[0];
+          return {
+            name: subjectName,
+            id: firstQuestion?.subjectId || ""
+          };
+        });
+        
+        setSubjects(subjectsList);
+        
+        // If there are subjects, select the first one
+        if (subjectsList.length > 0 && !selectedSubject.name) {
+          const firstSubject = subjectsList[0];
+          setSelectedSubject(firstSubject);
+          
+          // Get questions for the first subject
+          const subjectQuestions = data.questionsBySubject[firstSubject.name] || [];
+          
+          // Format questions
+          const formattedQuestions = subjectQuestions.map((q) => {
+            // Find correct option
+            let correctOption = null;
+            let correctOptionText = "";
+            
+            if (q.options && Array.isArray(q.options)) {
+              correctOption = q.options.find(opt => opt.isCorrect === true);
+              correctOptionText = correctOption?.optionText || "";
+            }
+            
+            // Format optionFiles
+            const optionFiles = q.options ? q.options.map(opt => ({
+              text: opt.optionText || "",
+              image: opt.optionImageUrl,
+              isCorrect: opt.isCorrect || false
+            })) : [];
+            
+            return {
+              id: q.id,
+              questionText: q.questionText || "",
+              questionText2: q.questionImageUrl,
+              options: q.options || [],
+              correctAnswer: correctOptionText,
+              correctAnswerImage: null,
+              positiveMarks: data.correctMark,
+              negativeMarks: data.negativeMark,
+              optionFiles: optionFiles,
+              subjectId: q.subjectId,
+              subjectName: q.subjectName
+            };
+          });
+          
+          console.log("Formatted questions for first subject:", formattedQuestions);
+          setQuestions(formattedQuestions);
+        }
+      } else if (data.examType === "SUBJECT_WISE") {
+        // Fallback for old structure
         const subjectData = {
           name: data.subjectName || "Subject",
           id: data.subjectId || ""
@@ -163,25 +223,28 @@ const View = () => {
         setSelectedSubject(subjectData);
         setSubjects([subjectData]);
         
-        // Process questions for subject-wise exam - FIXED OPTIONS HANDLING
         if (data.questions && data.questions.length > 0) {
           const formattedQuestions = data.questions.map((q) => {
-            // Use the options array directly from the response
+            let correctOption = null;
+            let correctOptionText = "";
+            
+            if (q.options && Array.isArray(q.options)) {
+              correctOption = q.options.find(opt => opt.isCorrect === true);
+              correctOptionText = correctOption?.optionText || "";
+            }
+            
             const optionFiles = q.options ? q.options.map(opt => ({
               text: opt.optionText,
               image: opt.optionImageUrl,
               isCorrect: opt.isCorrect
             })) : [];
-            // console.log("Question options:", q.options);
-            // Find correct answer
-            const correctOption = q.options?.find(opt => opt.isCorrect);
             
             return {
               id: q.id,
               questionText: q.questionText || q.question,
               questionText2: q.questionImageUrl,
               options: q.options || [],
-              correctAnswer: correctOption?.optionText || "",
+              correctAnswer: correctOptionText,
               correctAnswerImage: null,
               positiveMarks: data.correctMark,
               negativeMarks: data.negativeMark,
@@ -189,56 +252,8 @@ const View = () => {
               instituteIds: data.instituteIds || [],
             };
           });
-          console.log("Formatted questions:", formattedQuestions); // Debug log
+          console.log("Formatted subject-wise questions:", formattedQuestions);
           setQuestions(formattedQuestions);
-        }
-      } else {
-        // For exam-wise exams, handle multiple subjects
-        if (data.subjectNames && data.subjectNames.length > 0) {
-          const subjectsList = data.subjectNames.map((subjectName, index) => ({
-            name: subjectName,
-            id: data.subjectsIds?.[index] || ""
-          }));
-          setSubjects(subjectsList);
-
-          if (subjectsList.length > 0 && !selectedSubject.name) {
-            const firstSubject = subjectsList[0];
-            setSelectedSubject(firstSubject);
-            
-            // Process questions for the first subject - FIXED OPTIONS HANDLING
-            if (data.questions && data.questions.length > 0) {
-              const subjectQuestions = data.questions.filter(q => 
-                q.subjectName === firstSubject.name || !q.subjectName
-              );
-              
-              const formattedQuestions = subjectQuestions.map((q) => {
-                // Use the options array directly from the response
-                const optionFiles = q.options ? q.options.map(opt => ({
-                  text: opt.optionText,
-                  image: opt.optionImageUrl,
-                  isCorrect: opt.isCorrect
-                })) : [];
-                
-                // Find correct answer
-                const correctOption = q.options?.find(opt => opt.isCorrect);
-                
-                return {
-                  id: q.id,
-                  questionText: q.questionText || q.question,
-                  questionText2: q.questionImageUrl,
-                  options: q.options || [],
-                  correctAnswer: correctOption?.optionText || "",
-                  correctAnswerImage: null,
-                  positiveMarks: data.correctMark,
-                  negativeMarks: data.negativeMark,
-                  optionFiles: optionFiles,
-                  instituteIds: data.instituteIds || [],
-                };
-              });
-              console.log("Formatted exam-wise questions:", formattedQuestions); // Debug log
-              setQuestions(formattedQuestions);
-            }
-          }
         }
       }
 
@@ -293,37 +308,46 @@ const View = () => {
     ) || { name: selectedSubjectName, id: "" };
     setSelectedSubject(subject);
 
-    // Filter questions by selected subject for exam-wise tests
-    if (examDetails?.examType === "EXAM_WISE" && examDetails.questions) {
-      const subjectQuestions = examDetails.questions.filter(q => 
-        q.subjectName === subject.name || !q.subjectName
-      );
+    // Get questions for selected subject from questionsBySubject
+    if (examDetails?.questionsBySubject && examDetails.questionsBySubject[subject.name]) {
+      const subjectQuestions = examDetails.questionsBySubject[subject.name];
       
       const formattedQuestions = subjectQuestions.map((q) => {
-        // Use the options array directly from the response
-        const optionFiles = q.options ? q.options.map(opt => ({
-          text: opt.optionText,
-          image: opt.optionImageUrl,
-          isCorrect: opt.isCorrect
-        })) : [];
+        // Find correct option
+        let correctOption = null;
+        let correctOptionText = "";
         
-        // Find correct answer
-        const correctOption = q.options?.find(opt => opt.isCorrect);
+        if (q.options && Array.isArray(q.options)) {
+          correctOption = q.options.find(opt => opt.isCorrect === true);
+          correctOptionText = correctOption?.optionText || "";
+        }
+        
+        // Format optionFiles
+        const optionFiles = q.options ? q.options.map(opt => ({
+          text: opt.optionText || "",
+          image: opt.optionImageUrl,
+          isCorrect: opt.isCorrect || false
+        })) : [];
         
         return {
           id: q.id,
-          questionText: q.questionText || q.question,
+          questionText: q.questionText || "",
           questionText2: q.questionImageUrl,
           options: q.options || [],
-          correctAnswer: correctOption?.optionText || "",
+          correctAnswer: correctOptionText,
           correctAnswerImage: null,
           positiveMarks: examDetails.correctMark,
           negativeMarks: examDetails.negativeMark,
           optionFiles: optionFiles,
-          instituteIds: examDetails.instituteIds || [],
+          subjectId: q.subjectId,
+          subjectName: q.subjectName
         };
       });
+      
+      console.log(`Formatted questions for ${subject.name}:`, formattedQuestions);
       setQuestions(formattedQuestions);
+    } else {
+      setQuestions([]);
     }
   };
 
@@ -353,21 +377,11 @@ const View = () => {
         console.error("No auth token available");
         return;
       }
-// {
-//   "testName": "Updated Physics Mock Test",
-//   "durationMinutes": 180,
-//   "correctMark": 4.0,
-//   "negativeMark": 1.0,
-//   "instituteIds": [101, 102],
-// }
+
       const payload = {
         testName: editedDetails.testName,
         correctMark: parseFloat(editedDetails.positiveMarks),
         negativeMark: parseFloat(editedDetails.negativeMarks),
-        // Add other fields that should be non-editable but need to be sent
-        // instituteIds: selectedInstitutes.map(inst => inst.value),
-        // examName: examDetails?.examName,
-        // subjectNames: subjects.map(sub => sub.name)
       };
 
       const apiUrl = `${config.apiUrl}/tests/${test_id}`;
@@ -505,7 +519,7 @@ const View = () => {
         }))
       };
 
-      console.log("Saving question data:", questionData); // Debug log
+      console.log("Saving question data:", questionData);
 
       // Prepare form data for file uploads
       const formData = new FormData();
@@ -652,7 +666,7 @@ const View = () => {
                         value={selectedInstitutes}
                         onChange={handleInstituteChange}
                         isMulti
-                        isDisabled={true} // Non-editable
+                        isDisabled={true}
                         className="basic-multi-select"
                         classNamePrefix="select"
                         placeholder="Select Institute(s)"
@@ -767,8 +781,8 @@ const View = () => {
                   </div>
                 </div>
 
-                {/* Only show subject dropdown for exam-wise tests */}
-                {examDetails?.examType === "EXAM_WISE" && subjects.length > 1 && (
+                {/* Subject dropdown (only show if multiple subjects exist) */}
+                {subjects.length > 1 && (
                   <div className="mb-6">
                     <label
                       htmlFor="subject"
@@ -797,7 +811,7 @@ const View = () => {
                   <div className="space-y-6">
                     {questions.map((question, index) => (
                       <div
-                        key={index}
+                        key={question.id || index}
                         className="bg-white p-6 rounded-lg shadow-lg w-full"
                       >
                         {editingIndex === index ? (
@@ -1061,7 +1075,7 @@ const View = () => {
                                   </span>{" "}
                                   <span
                                     dangerouslySetInnerHTML={{
-                                      __html: question.questionText,
+                                      __html: question.questionText || "No question text",
                                     }}
                                   />
                                 </h3>
@@ -1107,30 +1121,28 @@ const View = () => {
                                 Options:
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-{question.options && question.options.map((option, idx) => {
-                                  const optionLabel = String.fromCharCode(
-                                    65 + idx
-                                  );
+                                {question.options && question.options.map((option, idx) => {
+                                  const optionLabel = String.fromCharCode(65 + idx);
                                   return (
                                     <div
-                                      key={idx}
+                                      key={option.id || idx}
                                       className={`bg-gray-50 p-4 rounded-lg shadow-md ${
                                         option.isCorrect ? 'border-2 border-green-500 bg-green-50' : ''
                                       }`}
                                     >
-                                     <label className="block text-lg font-semibold text-gray-700">
-            {optionLabel}){" "}
-            <span
-              ref={(el) => (optionTextRefs.current[idx] = el)}
-              dangerouslySetInnerHTML={{
-                __html: option.optionText,
-              }}
-            />
-            {option.isCorrect && (
-              <span className="ml-2 text-green-600 text-sm">✓ Correct</span>
-            )}
-          </label>
-                                      {option.image && (
+                                      <label className="block text-lg font-semibold text-gray-700">
+                                        {optionLabel}){" "}
+                                        <span
+                                          ref={(el) => (optionTextRefs.current[idx] = el)}
+                                          dangerouslySetInnerHTML={{
+                                            __html: option.optionText || "",
+                                          }}
+                                        />
+                                        {option.isCorrect && (
+                                          <span className="ml-2 text-green-600 text-sm">✓ Correct</span>
+                                        )}
+                                      </label>
+                                      {option.optionImageUrl && (
                                         <div className="relative mt-2">
                                           <img
                                             src={getImageUrl(option.optionImageUrl)}
@@ -1149,7 +1161,7 @@ const View = () => {
                                 <div>
                                   <strong>Correct Answer:</strong>
                                   <span className="ml-2">
-                                    {question.correctAnswer}
+                                    {question.correctAnswer || "No correct answer specified"}
                                   </span>
                                 </div>
                               </div>
