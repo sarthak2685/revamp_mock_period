@@ -567,7 +567,7 @@ const fetchDomains = async () => {
     }
 
     try {
-      const response = await fetch(`${config.apiUrl}/exam-subject-chapters`, {
+      const response = await fetch(`${config.apiUrl}/chapters/subject/${newTest.subject}`, {
         method: "GET",
         headers: {
           Authorization: `Token ${token}`,
@@ -577,16 +577,9 @@ const fetchDomains = async () => {
 
       const result = await response.json();
 
-      if (Array.isArray(result)) {
-        // Filter chapters where for_exam_subject matches newTest.subject
-        const filteredChapters = result.filter(
-          (chapter) => chapter.for_exam_subject === newTest.subject
-        );
-
-        // Add the "ALL Chapter" option at the beginning
-        // const allOption = { name: "ALL Chapter", id: "all" };
-        setChapters([...filteredChapters]);
-      } else {
+     if (Array.isArray(result)) {
+      setChapters(result);
+    } else {
         console.error("Unexpected response format:", result);
       }
     } catch (error) {
@@ -597,9 +590,14 @@ const fetchDomains = async () => {
     }
   };
 
-  useEffect(() => {
+// Add this useEffect to fetch chapters when subject changes
+useEffect(() => {
+  if (newTest.subject) {
     fetchChapters();
-  }, []); // Run once when the component mounts
+  } else {
+    setChapters([]); // Clear chapters if no subject is selected
+  }
+}, [newTest.subject]);
 
   const [institutes, setInstitutes] = useState([]); // State to hold institutes
 
@@ -758,6 +756,7 @@ const handleTest = async () => {
       correctMark: parseFloat(newTest.correctMark) || 1.0,
       negativeMark: Math.abs(parseFloat(newTest.negativeMark)) || 0.25, // Ensure positive value
       examId: newTest.domain || null,
+      language: [newTest.language?.toUpperCase() || "ENGLISH"],
       questionDto: questionData
     };
 
@@ -769,7 +768,7 @@ const handleTest = async () => {
         [];
     } else {
       // When examId is null, send single subjectId and chapterIds
-      testData.subjectid = newTest.subject;
+      testData.subjectId = newTest.subject;
       testData.chapterIds = newTest.chapter?.id ? [newTest.chapter.id] : [];
     }
 
@@ -810,9 +809,9 @@ const handleTest = async () => {
     );
 
     // Add language if present
-    if (newTest.language) {
-      formData.append("language", newTest.language);
-    }
+    // if (newTest.language) {
+    //   formData.append("language", newTest.language);
+    // }
 
     console.log("Submitting test data:", testData);
 
@@ -997,7 +996,7 @@ const handleTest = async () => {
   } else {
     // When no exam selected (subject-wise)
     testData.examId = null;
-    testData.subjectid = newTest.subject;
+    testData.subjectId = newTest.subject;
     testData.chapterIds = newTest.chapter?.id ? [newTest.chapter.id] : [];
   }
 
@@ -1200,45 +1199,42 @@ const handleTest = async () => {
 </div>
 
                     {/* Chapter Dropdown */}
-                    <div
-                      className="flex-1 min-w-[200px]"
-                      onClick={fetchChapters}
-                    >
-                      <select
-                        name="chapter"
-                        value={newTest.chapter?.id || ""}
-                        onChange={(e) => {
-                          const selectedChapterId = e.target.value;
-                          const selectedChapter = chapters.find(
-                            (chapter) => chapter.id === selectedChapterId
-                          );
+<div className="flex-1 min-w-[200px]">
+  <select
+    name="chapter"
+    value={newTest.chapter?.id || ""}
+    onChange={(e) => {
+      const selectedChapterId = e.target.value;
+      const selectedChapter = chapters.find(
+        (chapter) => chapter.id.toString() === selectedChapterId.toString()
+      );
 
-                          setNewTest((prevTest) => ({
-                            ...prevTest,
-                            chapter: selectedChapter || null,
-                          }));
-                        }}
-                        disabled={!!newTest.domain}
-                        className={`border p-2 w-full rounded-md transition duration-200 ${
-                          newTest.domain
-                            ? "bg-gray-200 cursor-not-allowed focus:ring-0"
-                            : "focus:outline-none focus:ring focus:ring-blue-400"
-                        }`}
-                        required={!newTest.domain}
-                      >
-                        <option value="" disabled>
-                          Select Chapter
-                        </option>
-                        {chapters.map((chapter) => (
-                          <option key={chapter.id} value={chapter.id}>
-                            {chapter.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+      setNewTest((prevTest) => ({
+        ...prevTest,
+        chapter: selectedChapter || null,
+      }));
+    }}
+    disabled={!!newTest.domain}
+    className={`border p-2 w-full rounded-md transition duration-200 ${
+      newTest.domain
+        ? "bg-gray-200 cursor-not-allowed focus:ring-0"
+        : "focus:outline-none focus:ring focus:ring-blue-400"
+    }`}
+    required={!newTest.domain}
+  >
+    <option value="" disabled>
+      Select Chapter
+    </option>
+    {chapters.map((chapter) => (
+      <option key={chapter.id} value={chapter.id}>
+        {chapter.name}
+      </option>
+    ))}
+  </select>
+</div>
 
                     {/* Subtopic Dropdown */}
-                    <div className="flex-1 min-w-[200px]">
+                    {/* <div className="flex-1 min-w-[200px]">
                       <select
                         value={newTest.subtopic || ""}
                         onClick={() => {
@@ -1269,7 +1265,7 @@ const handleTest = async () => {
                           </option>
                         ))}
                       </select>
-                    </div>
+                    </div> */}
                   </div>
 
                   {/* Correct Mark, Negative Mark, and Language Selection in Same Row */}

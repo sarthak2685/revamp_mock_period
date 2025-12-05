@@ -23,6 +23,7 @@ const TestList = () => {
   const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 768);
   const didFetch = useRef(false);
   const [selectedTestId, setSelectedTestId] = useState(null);
+  const [subjectId, setSubjectId] = useState(null);
   const S = JSON.parse(localStorage.getItem("user"));
   const token = S?.token;
   const API_URL = `${config.apiUrl}/tests/`;
@@ -79,19 +80,20 @@ const fetchSubjectTests = useCallback(async () => {
       { headers: { Authorization: `Token ${token}` } }
     );
 
-    // Group by subjectNames
- const grouped = data.reduce((acc, item) => {
-  if (!Array.isArray(item.subjectNames)) return acc;
-  item.subjectNames.forEach(subject => {
-    if (!acc[subject]) acc[subject] = [];
-    acc[subject].push({
-      id: item.id,
-      name: item.testName
-    });
-  });
-  return acc;
-}, {});
-
+    // Group by subjectName (single subject per test)
+    const grouped = data.reduce((acc, item) => {
+      if (!item.subjectName) return acc;
+      if (!acc[item.subjectName]) acc[item.subjectName] = [];
+      acc[item.subjectName].push({
+        id: item.id,
+        name: item.testName,
+        subjectId: item.subjectId, // Add subjectId for edit functionality
+        durationMinutes: item.durationMinutes,
+        language: item.language,
+        chapterNames: item.chapterNames
+      });
+      return acc;
+    }, {});
 
     // Map test -> subjectId
     const subjectMap = data.reduce((acc, item) => {
@@ -141,15 +143,18 @@ const handleEdit = (test) => {
   console.log("Editing test ID:", test.id);
 
   setSelectedTestId(test.id);        // ⭐ store test id
-  setSelectedTestName(test.testName);
+  setSelectedTestName(test.name);
 
   if (test.subjectId) {
     setSelectedSubjectId(test.subjectId);
     setIsSubjectTest(true);
+       setSubjectId(test.id)
+
   } else {
     setSelectedExamId(test.examId);
+    setSubjectId(test.id)
     setIsSubjectTest(false);
-    setSelectedExamId(testExamIds[test.testName]);
+    setSelectedExamId(testExamIds[test.name]);
   }
 
   setIsLangModalOpen(true);
@@ -218,40 +223,43 @@ const handleEdit = (test) => {
               <hr className="w-full text-black border-black border-t-2" />
 
               {/* Subject-Based Tests */}
-              {Object.keys(subjectTests).length > 0 ? (
-                <div>
-                  <h2 className="text-xl font-semibold mt-6 mb-3">
-                    Tests by Subject
-                  </h2>
-                  {Object.entries(subjectTests).map(([subject, testList]) => (
-                    <div key={subject} className="mb-6">
-                      <h3 className="font-bold text-lg text-gray-700">
-                        {subject}
-                      </h3>
-                      <div className="grid md:grid-cols-2 gap-4">
-                      {testList.map((test) => (
-  <div key={test.id} className="shadow-md p-4 flex justify-between items-center bg-white border rounded-lg">
-    <div className="text-lg font-medium">{test.name}</div>
-    <div className="flex gap-3 items-center">
-      <FiEdit size={20} className="text-blue-600 cursor-pointer hover:text-blue-800"
-        onClick={() => handleEdit(test.id)}
-      />
-      <FiTrash2 size={20} className="text-red-600 cursor-pointer hover:text-red-800"
-        onClick={() => confirmDelete(test.id)}
-      />
-    </div>
+{Object.keys(subjectTests).length > 0 ? (
+  <div>
+    <h2 className="text-xl font-semibold mt-6 mb-3">
+      Tests by Subject
+    </h2>
+    {Object.entries(subjectTests).map(([subject, testList]) => (
+      <div key={subject} className="mb-6">
+        <h3 className="font-bold text-lg text-gray-700">
+          {subject}
+        </h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          {testList.map((test) => (
+            <div key={test.id} className="shadow-md p-4 flex justify-between items-center bg-white border rounded-lg">
+              <div className="text-lg font-medium">{test.name}</div>
+              <div className="flex gap-3 items-center">
+                <FiEdit 
+                  size={20} 
+                  className="text-blue-600 cursor-pointer hover:text-blue-800"
+                  onClick={() => handleEdit(test)} // Pass full test object
+                />
+                <FiTrash2 
+                  size={20} 
+                  className="text-red-600 cursor-pointer hover:text-red-800"
+                  onClick={() => confirmDelete(test.id)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
   </div>
-))}
-
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-center text-gray-500">
-                  No subject-based tests available
-                </p>
-              )}
+) : (
+  <p className="text-center text-gray-500">
+    No subject-based tests available
+  </p>
+)}
             </>
           )}
         </div>
@@ -298,14 +306,14 @@ const handleEdit = (test) => {
                 // Links for subject tests
                 <>
                   <Link
-                    to={`/chapter-view?test=${selectedTestName}&lang=english&subject_id=${selectedSubjectId}`}
+                    to={`/chapter-view?test=${selectedTestName}&lang=english&subject_id=${subjectId}`}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-center"
                     onClick={() => setIsLangModalOpen(false)}
                   >
                     English
                   </Link>
                   <Link
-                    to={`/chapter-view?test=${selectedTestName}&lang=hindi&subject_id=${selectedSubjectId}`}
+                    to={`/chapter-view?test=${selectedTestName}&lang=hindi&subject_id=${subjectId}`}
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-center"
                     onClick={() => setIsLangModalOpen(false)}
                   >
